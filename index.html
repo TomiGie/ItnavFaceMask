@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ja">
+	<head>
+		<title>Face mask</title>
+		<meta charset="utf-8">
+<meta property="og:title" content="6月のゆるゆるハッカソン成果物｜Furuyamask">
+<meta property="og:type" content="website">
+<meta property="og:description" content="誰でも『あの』モテ顔になれる！？">
+<meta property="og:url" content="http://watalucky.com/furuyamask/">
+<meta property="og:image" content="http://watalucky.com/furuyamask/ogp.png">
+		<style>
+			@import url(https://fonts.googleapis.com/css?family=Lato:300italic,700italic,300,700);
+
+			body {
+				font-family: 'Lato';
+				background-color: #f0f0f0;
+				margin: 0px auto;
+				max-width: 1150px;
+			}
+			
+			
+			#overlay, #webgl {
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+			}
+
+			#videoel {
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+			}
+
+			#container {
+				position : relative;
+				width : 370px;
+				/*margin : 0px auto;*/
+			}
+			
+			#content {
+				margin-top : 70px;
+				margin-left : 100px;
+				margin-right : 100px;
+				max-width: 950px;
+			}
+			 
+			#sketch {
+				display: none;
+			}
+			
+			#filter {
+				display: none;
+			}
+
+			h2 {
+				font-weight : 400;
+			}
+
+			.masks {
+				display: none;
+			}
+
+			.nogum {
+						display : none;
+			}
+			
+			.btn {
+						font-family: 'Lato';
+						font-size: 16px;
+			}
+
+			.hide {
+				display : none;
+			}
+
+			.nohide {
+				display : block;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="./ext_js/dat.gui.min.js"></script>
+		<script src="./ext_js/utils.js"></script>
+		<script src="./ext_js/jsfeat-min.js"></script>
+		<script src="./ext_js/frontalface.js"></script>
+		<script src="./ext_js/jsfeat_detect.js"></script>
+		<script src="./ext_js/numeric-1.2.6.min.js"></script>
+		<script src="./ext_js/mosse.js"></script>
+		<script src="./ext_js/left_eye_filter.js"></script>
+		<script src="./ext_js/right_eye_filter.js"></script>
+		<script src="./ext_js/nose_filter.js"></script>
+		<script src="./models/model_pca_20_svm.js"></script>
+		<script src="./js/clm.js"></script>
+		<script src="./js/svmfilter_webgl.js"></script>
+		<script src="./js/svmfilter_fft.js"></script>
+		<script src="./js/mossefilter.js"></script>
+		<script src="./ext_js/Stats.js"></script>
+		<script src="./js/face_deformer.js"></script>
+		<div id="content">
+			<h2>Furuyamask</h2>
+			<p id="desc"><strong>使い方</strong><br>
+			カメラの使用を許可してからスタートボタンを押します。メガネは外した方が良いです。<br>
+			そうすると顔認識が始まりますので出来るだけジッとしててください。<br>
+			あと、画面内に顔収まるように顔でかい人はカメラから離れてください。<br>
+			しばらくすると貴方も古山さんになれますので画面を写メって各種サービスのプロフィール画像にお使いください。</p>
+			<div id="container">
+				<video id="videoel" width="400" height="300" preload="auto">
+				</video>
+				<canvas id="overlay" width="400" height="300"></canvas>
+				<canvas id="webgl" width="400" height="300"></canvas>
+			</div>
+			<br/>
+			<input class="btn" type="button" value="wait, loading video" disabled="disabled" onclick="startVideo()" id="startbutton"></input>
+			<select name="mask" id="selectmask" style="display:none;">
+				<option value="0">furuyama</option>
+			</select>
+			<br>
+			<br>
+			<ul>
+				<li>PCのみで動作します。google chromeでのみ動作確認しています。</li>
+				<li>基本的に<a href="https://github.com/auduno/clmtrackr" target="_blank">これ</a>を使ってます。ぼくはほとんど何もしてません。</li>
+				<li>ちなみに、ぼくの欲しいものリストは<a href="http://www.amazon.co.jp/registry/wishlist/3EC3A5CP4APHC">こちら</a>です。</li>
+				<li>合成画像の元になった古山さんに会いたい人は<a href="http://ishinomakihack.com/" target="_blank">石巻ハッカソン</a>に参加しましょう。</li>
+			</ul>
+			<!-- <img id="furuyama" class="masks" src="./media/furuyama2.jpg"></img> -->
+			<!-- <img id="furuyama" class="masks" src="./media/mit.jpg"></img> // micchie-->
+			 <img id="furuyama" class="masks" src="./media/shapei.jpg"></img>
+			<script>
+				var vid = document.getElementById('videoel');
+				var overlay = document.getElementById('overlay');
+				var overlayCC = overlay.getContext('2d');
+				
+				var ctrack = new clm.tracker();
+				ctrack.init(pModel);
+				
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				document.getElementById('container').appendChild( stats.domElement );
+				
+				function enablestart() {
+					var startbutton = document.getElementById('startbutton');
+					startbutton.value = "start";
+					startbutton.disabled = null;
+				}
+				
+				var insertAltVideo = function(video) {
+					
+					if (supports_video()) {
+						if (supports_h264_baseline_video()) {
+							video.src = "./media/bakavirus.mp4";
+						}
+						else {
+							video.src = "./media/bakavirus.mov";
+							//return false;
+
+						}
+							document.getElementById('desc').innerHTML="<strong>もうしわけない</strong><br>このサービスはPC専用なんですわ。でも、せっかくなんでBAKAVIRUSのPVでも見ていってください。これが便乗商法です。";
+						//video.play();
+						return true;
+					} else return false;
+				}
+				
+				// check whether browser supports webGL
+				var webGLContext;
+				var webGLTestCanvas = document.createElement('canvas');
+				if (window.WebGLRenderingContext) {
+					webGLContext = webGLTestCanvas.getContext('webgl') || webGLTestCanvas.getContext('experimental-webgl');
+					if (!webGLContext || !webGLContext.getExtension('OES_texture_float')) {
+						webGLContext = null;
+					}
+				}
+				if (webGLContext == null) {
+					alert("Your browser does not seem to support WebGL. Unfortunately this face mask example depends on WebGL, so you'll have to try it in another browser. :(");
+				}
+				
+				navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+				window.URL = window.URL || window.webkitURL || window.msURL || window.mozURL;
+				
+				// check for camerasupport
+				if (navigator.getUserMedia) {
+					// set up stream
+					
+					// chrome 19 shim
+					var videoSelector = {video : true};
+					if (window.navigator.appVersion.match(/Chrome\/(.*?) /)) {
+						var chromeVersion = parseInt(window.navigator.appVersion.match(/Chrome\/(\d+)\./)[1], 10);
+						if (chromeVersion < 20) {
+							videoSelector = "video";
+						}
+					};
+					
+					navigator.getUserMedia(videoSelector, function( stream ) {
+						if (vid.mozCaptureStream) {
+							vid.mozSrcObject = stream;
+						} else {
+							vid.src = (window.URL && window.URL.createObjectURL(stream)) || stream;
+						}
+						vid.play();
+					}, function() {
+						insertAltVideo(vid);
+						document.getElementById('gum').className = "hide";
+						document.getElementById('nogum').className = "nohide";
+						alert("There was some problem trying to fetch video from your webcam, using a fallback video instead.");
+					});
+				} else {
+					insertAltVideo(vid)
+					document.getElementById('gum').className = "hide";
+					document.getElementById('nogum').className = "nohide";
+					alert("Your browser does not seem to support getUserMedia, using a fallback video instead.");
+				}
+
+				vid.addEventListener('canplay', enablestart, false);
+
+				document.getElementById('selectmask').addEventListener('change', updateMask, false);
+
+				function updateMask(el) {
+					currentMask = parseInt(el.target.value, 10);
+					switchMasks();
+				}
+
+				function startVideo() {
+					// start video
+					vid.play();
+					// start tracking
+					ctrack.start(vid);
+					// start drawing face grid
+					drawGridLoop();
+				}
+
+				var positions;
+				var fd = new faceDeformer();
+				fd.init(document.getElementById('webgl'));
+				
+				// shapei
+				var masks = {
+					"furuyama" : [[202.14517780122083,234.0626524962128],[202.2868425597402,258.928662577721],[207.44385246884605,284.89362827141844],[214.19477718369507,311.64836947466733],[224.99418758456412,332.6234329241268],[238.55409115666373,349.9128891405164],[254.4304297344821,364.2171784271613],[274.6422997458289,369.2961682969841],[294.82662945207494,364.31800681435584],[310.5277558736442,350.30979482978023],[323.8298661532925,333.12199234096704],[334.45664631386825,312.16316138343205],[340.92858104304696,285.1514639352018],[345.95059586147494,259.2093587734178],[345.94511068845213,234.30221771878146],[333.10449417105417,230.1597114047331],[321.5563471840019,225.2765171912856],[304.61426848046574,226.77379448895962],[290.7901224159041,229.93884253646152],[213.9232727393402,229.54668539528643],[225.10915361694504,224.84002499676734],[241.89141495020576,226.49233511758254],[255.619591112502,229.75067801776052],[223.76694177883536,247.8998710609691],[237.57194678008833,242.54317501093635],[252.82791262654254,249.97314920514447],[237.1651707479874,254.15387035878737],[238.07066546903656,247.66690938573157],[323.4005886617988,248.2769235545609],[309.39937037855924,242.84885383989294],[294.1630184776644,250.13163825324548],[309.7123909959692,254.42740292067265],[308.7680993883822,247.97182420168784],[273.38119904697936,246.38328207559005],[257.84448801174824,284.4541528930974],[252.93460754100695,295.40693181207615],[258.42877136524055,302.93048256618],[273.528467032394,306.6765179955431],[288.8444165844111,303.0100535016335],[294.4137056719685,295.4016137723528],[289.48028309453383,284.4635774034285],[273.4196409966615,271.99252657756824],[261.5984589911641,298.7142122318364],[285.61542134402157,298.74614665814767],[250.56348584368826,329.4216357701082],[258.4394088212973,325.4574518345637],[266.9505475953591,323.2297282826694],[273.93687697031964,324.6070395760975],[280.92319985023977,323.25051033731904],[289.6851836873757,325.5237760768284],[297.84179872571644,329.6125478195721],[291.9912977815044,335.73377484043533],[284.4749817186524,340.08396001912206],[274.1620750564342,341.57669127626355],[263.8739004794991,339.92546703211246],[256.5515712148081,335.5781968692064],[262.82915266095324,329.0888456973353],[274.15970455467,330.79916326861894],[285.55214315903373,329.27382918254784],[285.6003665940346,329.86657921621384],[274.03765524314605,330.43182526261694],[262.4850724582495,329.7979376041392],[273.44214979018034,296.3882767644636],[229.32040030019908,243.88102864093392],[246.59064429004087,244.5201944543312],[245.45999540027648,252.7373429172995],[229.28891761416153,252.14255127268999],[317.6982107699266,244.25159331916691],[300.4037749023205,244.71114850878257],[301.4699572709257,252.94658227911714],[317.6990913459815,252.4802012835824]]
+				};
+
+				// micchie
+				// var masks = {
+				//  	"furuyama" : [[81.20043105727339,99.02095100225385],[79.74197059546543,114.53609446443068],[81.22859543814867,129.82905320798773],[85.41357625711946,145.1245122590369],[92.81913237803542,158.07015323791302],[102.84837552086026,168.69875876456132],[114.73377658053197,177.424950688104],[128.42041643535103,180.6302736315248],[141.2622200252178,177.4435331393661],[151.4632986999572,168.5082881137165],[160.0417061472163,157.85515437606318],[166.4668464823248,145.17510554112238],[170.5364447425676,130.42808896151183],[172.3645516979455,115.47329124935021],[171.3934005685058,100.35603902926816],[164.10801212715165,90.27064822615378],[157.8192827288098,86.51842136991813],[147.3416408341543,86.79840761161579],[138.8928240328674,88.81223007555239],[91.95886174372751,89.25750271437565],[99.52029470544619,85.39384903525924],[110.68026328485075,86.03187532368054],[119.31994169582256,88.38494290771516],[98.63193825996878,100.30364387557668],[107.32186241874766,96.66784106356933],[115.94560063146588,101.03604063636561],[107.10395329719117,102.69370013085859],[107.37236444264656,99.57075504698469],[157.97363828968287,101.42643997307508],[150.11385832863837,97.51982207498804],[141.05064649617248,101.44246360271518],[149.91108546676287,103.4817409284448],[149.6855722990593,100.37880825473738],[129.18054874135697,98.15837969261017],[119.49745744700752,118.00949551471997],[114.67065398407854,124.56316221846942],[118.38680412226964,129.27779393949427],[129.35850762451096,132.07487353662316],[139.46938744567194,129.5003465774522],[143.0921586589037,124.95504297958702],[138.86778116826002,118.31168796979347],[129.67125449136734,111.81233923998293],[121.99596977264915,127.57425966566004],[136.82853736414984,127.99758781259638],[109.04207916374455,143.81256320716835],[116.56223936296576,140.38445979197],[124.32081049203347,139.515430220705],[129.22002009921027,140.52443981828364],[133.9928782555033,139.67127049047537],[141.11585273077867,140.70630035571762],[147.33686220938728,144.33979713718514],[143.46160088558892,152.24214210900678],[137.51415374299984,157.58204990686443],[128.93047616037282,159.09019123415888],[120.01197544991989,157.3422775460387],[113.48238230566821,151.88520017443022],[119.19548361526759,150.78944993745463],[128.94209270455198,152.96562195638904],[138.19614766351253,151.08416378825797],[138.19426410857614,143.29789253891195],[129.0712433897719,143.71658789063932],[119.36749276416643,143.06066179336682],[130.05717207364384,124.72820392988433],[102.43095125486374,97.70573252259265],[112.37195442597803,97.95302290940053],[111.69688436421183,102.12581339655696],[102.58140839290614,101.93541612067517],[154.68629027515414,98.74725411217827],[144.9886473147068,98.52999925879719],[145.3775783070011,102.72830885153425],[154.30839675437454,102.88089523226171]]
+				// };
+				var currentMask = 0;
+				var animationRequest;
+		
+				function drawGridLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition(vid);
+					overlayCC.clearRect(0, 0, 500, 375);
+					if (positions) {
+						// draw current grid
+						ctrack.draw(overlay);
+					}
+					// check whether mask has converged
+					var pn = ctrack.getConvergence();
+					if (pn < 0.4) {
+						switchMasks();
+						requestAnimFrame(drawMaskLoop);
+					} else {
+						requestAnimFrame(drawGridLoop);
+					}
+				}
+					
+				function switchMasks() {
+					// get mask
+					var maskname = Object.keys(masks)[currentMask];
+					fd.load(document.getElementById(maskname), masks[maskname], pModel);
+				}
+				
+				function drawMaskLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition();
+					overlayCC.clearRect(0, 0, 400, 300);
+					if (positions) {
+						// draw mask on top of face
+						fd.draw(positions);
+					}
+					animationRequest = requestAnimFrame(drawMaskLoop);
+				}
+							
+				document.addEventListener("clmtrackrIteration", function(event) {
+					stats.update();
+				}, false);
+					
+			</script>
+		</div>
+	</body>
+</html>
